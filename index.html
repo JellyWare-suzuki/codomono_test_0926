@@ -1,11 +1,129 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <title>ツムツム風ゲーム</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #f0f8ff;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      margin: 10px 0;
+    }
+
+    #score {
+      font-size: 1.5em;
+      margin: 10px 0;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(8, 50px);
+      grid-template-rows: repeat(10, 50px);
+      gap: 4px;
+      justify-content: center;
+      margin: 20px auto;
+      width: max-content;
+    }
+
+    .cell {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-color: gray;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .cell.selected {
+      outline: 3px solid yellow;
+      transform: scale(1.2);
+    }
+
+    .red { background-color: #e74c3c; }
+    .blue { background-color: #3498db; }
+    .green { background-color: #2ecc71; }
+    .yellow { background-color: #f1c40f; }
+    .purple { background-color: #9b59b6; }
+  </style>
 </head>
 <body>
-    指示があるまで触らないでください。
+  <h1>ツムツム風ゲーム</h1>
+  <div id="score">スコア: 0</div>
+  <div id="board"></div>
+
+  <script>
+    const board = document.getElementById('board');
+    const scoreDisplay = document.getElementById('score');
+    const rows = 10, cols = 8;
+    const colors = ['red', 'blue', 'green', 'yellow', 'purple'];
+    let score = 0;
+
+    // ボード作成
+    const grid = [];
+    for (let r = 0; r < rows; r++) {
+      grid[r] = [];
+      for (let c = 0; c < cols; c++) {
+        const div = document.createElement('div');
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        div.className = `cell ${color}`;
+        div.dataset.row = r;
+        div.dataset.col = c;
+        board.appendChild(div);
+        grid[r][c] = div;
+      }
+    }
+
+    let selecting = false;
+    let selected = [];
+    let selectedColor = '';
+
+    function isNeighbor(a, b) {
+      const dr = Math.abs(parseInt(a.dataset.row) - parseInt(b.dataset.row));
+      const dc = Math.abs(parseInt(a.dataset.col) - parseInt(b.dataset.col));
+      return (dr + dc === 1);
+    }
+
+    board.addEventListener('mousedown', e => {
+      if (!e.target.classList.contains('cell')) return;
+      selecting = true;
+      selected = [e.target];
+      selectedColor = colors.find(c => e.target.classList.contains(c));
+      e.target.classList.add('selected');
+    });
+
+    board.addEventListener('mouseover', e => {
+      if (!selecting || !e.target.classList.contains('cell')) return;
+      if (selected.includes(e.target)) return;
+      if (!e.target.classList.contains(selectedColor)) return;
+      const last = selected[selected.length - 1];
+      if (isNeighbor(last, e.target)) {
+        selected.push(e.target);
+        e.target.classList.add('selected');
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (selecting && selected.length >= 3) {
+        for (let cell of selected) {
+          const r = parseInt(cell.dataset.row);
+          const c = parseInt(cell.dataset.col);
+          const newColor = colors[Math.floor(Math.random() * colors.length)];
+          cell.className = `cell ${newColor}`;
+        }
+        score += selected.length * 10;
+        scoreDisplay.textContent = `スコア: ${score}`;
+      }
+      // リセット
+      selected.forEach(cell => cell.classList.remove('selected'));
+      selected = [];
+      selecting = false;
+    });
+  </script>
 </body>
 </html>
