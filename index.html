@@ -2,129 +2,188 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>ツムツム風ゲーム</title>
+  <title>忍者の万博バトル - 刈谷中学校</title>
   <style>
     body {
-      font-family: sans-serif;
-      text-align: center;
-      background: #f0f8ff;
       margin: 0;
-      padding: 0;
+      background: url('https://i.imgur.com/4NJlZpl.jpg'); /* 万博風背景 */
+      background-size: cover;
+      overflow: hidden;
+      font-family: "Arial", sans-serif;
     }
-
-    h1 {
-      margin: 10px 0;
+    canvas {
+      background-color: rgba(255,255,255,0.6);
+      display: block;
+      margin: 0 auto;
+      border: 4px solid #333;
     }
-
-    #score {
-      font-size: 1.5em;
-      margin: 10px 0;
-    }
-
-    #board {
-      display: grid;
-      grid-template-columns: repeat(8, 50px);
-      grid-template-rows: repeat(10, 50px);
-      gap: 4px;
-      justify-content: center;
-      margin: 20px auto;
-      width: max-content;
-    }
-
-    .cell {
-      width: 50px;
-      height: 50px;
-      /* ツムの形：四角に変更 */
-      border-radius: 0;
-      background-color: gray;
-      cursor: pointer;
-      transition: transform 0.1s;
-    }
-
-    .cell.selected {
-      outline: 3px solid yellow;
-      transform: scale(1.2);
-    }
-
-    .red { background-color: #e74c3c; }
-    .blue { background-color: #3498db; }
-    .green { background-color: #2ecc71; }
-    .yellow { background-color: #f1c40f; }
-    .purple { background-color: #9b59b6; }
   </style>
 </head>
 <body>
-  <h1>ツムツム風ゲーム</h1>
-  <div id="score">スコア: 0</div>
-  <div id="board"></div>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-  <script>
-    const board = document.getElementById('board');
-    const scoreDisplay = document.getElementById('score');
-    const rows = 10, cols = 8;
-    const colors = ['red', 'blue', 'green', 'yellow', 'purple'];
-    let score = 0;
+let ninja = { x: 400, y: 550, width: 40, height: 40, color: "black", hp: 3 };
+let bullets = [];
+let enemies = [];
+let juiceItems = [];
+let cats = [];
+let keys = {};
+let score = 0;
+let gameOver = false;
 
-    // ボード作成
-    const grid = [];
-    for (let r = 0; r < rows; r++) {
-      grid[r] = [];
-      for (let c = 0; c < cols; c++) {
-        const div = document.createElement('div');
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        div.className = `cell ${color}`;
-        div.dataset.row = r;
-        div.dataset.col = c;
-        board.appendChild(div);
-        grid[r][c] = div;
+// ブロック崩し風の敵配置
+for (let r = 0; r < 3; r++) {
+  for (let c = 0; c < 8; c++) {
+    enemies.push({ x: 100 + c * 80, y: 60 + r * 50, width: 50, height: 30, color: "brown", hp: 1 });
+  }
+}
+
+// キーボード操作
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+// 弾を発射
+function shoot() {
+  bullets.push({ x: ninja.x + ninja.width/2 - 5, y: ninja.y, width: 10, height: 20, color: "red" });
+}
+
+// 猫が登場して助けてくれる
+function spawnCat() {
+  cats.push({ x: Math.random() * 750, y: 0, width: 50, height: 50, color: "gray", speed: 2 });
+}
+
+// オレンジジュース登場（回復）
+function spawnJuice() {
+  juiceItems.push({ x: Math.random() * 750, y: 0, width: 30, height: 30, color: "orange" });
+}
+
+// 当たり判定
+function isColliding(a, b) {
+  return a.x < b.x + b.width && a.x + a.width > b.x &&
+         a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+// メインループ
+function update() {
+  if (gameOver) return;
+
+  // 移動
+  if (keys["ArrowLeft"] && ninja.x > 0) ninja.x -= 5;
+  if (keys["ArrowRight"] && ninja.x < canvas.width - ninja.width) ninja.x += 5;
+  if (keys[" "] || keys["z"]) shoot();
+
+  // 弾更新
+  bullets.forEach(b => b.y -= 10);
+  bullets = bullets.filter(b => b.y > 0);
+
+  // 敵と弾の当たり
+  enemies.forEach((enemy, ei) => {
+    bullets.forEach((b, bi) => {
+      if (isColliding(b, enemy)) {
+        enemies.splice(ei, 1);
+        bullets.splice(bi, 1);
+        score += 100;
       }
+    });
+  });
+
+  // オレンジジュース落下
+  juiceItems.forEach(j => j.y += 3);
+  juiceItems = juiceItems.filter(j => {
+    if (isColliding(j, ninja)) {
+      ninja.hp = Math.min(ninja.hp + 1, 5);
+      return false;
     }
+    return j.y < canvas.height;
+  });
 
-    let selecting = false;
-    let selected = [];
-    let selectedColor = '';
+  // 猫の助け
+  cats.forEach(cat => {
+    cat.y += cat.speed;
+    enemies = enemies.filter(e => !isColliding(e, cat));
+  });
 
-    function isNeighbor(a, b) {
-      const dr = Math.abs(parseInt(a.dataset.row) - parseInt(b.dataset.row));
-      const dc = Math.abs(parseInt(a.dataset.col) - parseInt(b.dataset.col));
-      return (dr + dc === 1);
+  // 敵が下まで来たらゲームオーバー
+  enemies.forEach(e => {
+    if (e.y + e.height >= ninja.y && isColliding(e, ninja)) {
+      ninja.hp--;
+      e.y = -100; // 飛ばす
     }
+  });
 
-    board.addEventListener('mousedown', e => {
-      if (!e.target.classList.contains('cell')) return;
-      selecting = true;
-      selected = [e.target];
-      selectedColor = colors.find(c => e.target.classList.contains(c));
-      e.target.classList.add('selected');
-    });
+  if (ninja.hp <= 0) {
+    gameOver = true;
+  }
+}
 
-    board.addEventListener('mouseover', e => {
-      if (!selecting || !e.target.classList.contains('cell')) return;
-      if (selected.includes(e.target)) return;
-      if (!e.target.classList.contains(selectedColor)) return;
-      const last = selected[selected.length - 1];
-      if (isNeighbor(last, e.target)) {
-        selected.push(e.target);
-        e.target.classList.add('selected');
-      }
-    });
+// 描画
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    window.addEventListener('mouseup', () => {
-      if (selecting && selected.length >= 3) {
-        for (let cell of selected) {
-          const r = parseInt(cell.dataset.row);
-          const c = parseInt(cell.dataset.col);
-          const newColor = colors[Math.floor(Math.random() * colors.length)];
-          cell.className = `cell ${newColor}`;
-        }
-        score += selected.length * 10;
-        scoreDisplay.textContent = `スコア: ${score}`;
-      }
-      // リセット
-      selected.forEach(cell => cell.classList.remove('selected'));
-      selected = [];
-      selecting = false;
-    });
-  </script>
+  // タイトル・情報
+  ctx.fillStyle = "black";
+  ctx.font = "20px sans-serif";
+  ctx.fillText("忍者の万博バトル - 刈谷中学校", 20, 30);
+  ctx.fillText("スコア: " + score, 20, 60);
+  ctx.fillText("HP: " + ninja.hp, 700, 30);
+
+  // プレイヤー
+  ctx.fillStyle = ninja.color;
+  ctx.fillRect(ninja.x, ninja.y, ninja.width, ninja.height);
+
+  // 弾
+  bullets.forEach(b => {
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+  });
+
+  // 敵（犬）
+  enemies.forEach(e => {
+    ctx.fillStyle = e.color;
+    ctx.fillRect(e.x, e.y, e.width, e.height);
+    ctx.fillStyle = "white";
+    ctx.fillText("犬", e.x + 15, e.y + 20);
+  });
+
+  // オレンジジュース
+  juiceItems.forEach(j => {
+    ctx.fillStyle = j.color;
+    ctx.fillRect(j.x, j.y, j.width, j.height);
+    ctx.fillStyle = "white";
+    ctx.fillText("OJ", j.x + 5, j.y + 20);
+  });
+
+  // 猫
+  cats.forEach(cat => {
+    ctx.fillStyle = cat.color;
+    ctx.fillRect(cat.x, cat.y, cat.width, cat.height);
+    ctx.fillStyle = "white";
+    ctx.fillText("猫", cat.x + 15, cat.y + 30);
+  });
+
+  if (gameOver) {
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "white";
+    ctx.font = "48px sans-serif";
+    ctx.fillText("ゲームオーバー", 270, 300);
+  }
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// 一定間隔でアイテム生成
+setInterval(spawnJuice, 7000);
+setInterval(spawnCat, 10000);
+
+gameLoop();
+</script>
 </body>
 </html>
